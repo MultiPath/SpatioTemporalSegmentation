@@ -38,6 +38,7 @@ def load_state(model, state):
     _model = model  
   _model.load_state_dict(state)
 
+
 def train(model, data_loader, val_data_loader, config, transform_data_fn=None):
   
   device = config.device_id
@@ -95,6 +96,9 @@ def train(model, data_loader, val_data_loader, config, transform_data_fn=None):
       optimizer.zero_grad()
       data_time, batch_loss, batch_score = 0, 0, 0
       iter_timer.tic()
+
+      # set random seed for every iteration for trackability
+      _set_seed(config, curr_iter)
 
       for sub_iter in range(config.iter_size):
         # Get training data

@@ -50,7 +50,11 @@ def train(model, data_loader, val_data_loader, config, transform_data_fn=None):
   # Configuration
   writer = SummaryWriter(log_dir=config.log_dir)
   data_timer, iter_timer = Timer(), Timer()
+  fw_timer, bw_timer, ddp_timer = Timer(), Timer(), Timer()
+
   data_time_avg, iter_time_avg = AverageMeter(), AverageMeter()
+  fw_time_avg, bw_time_avg, ddp_time_avg = AverageMeter(), AverageMeter(), AverageMeter()
+
   losses, scores = AverageMeter(), AverageMeter()
 
   optimizer = initialize_optimizer(model.parameters(), config)
@@ -111,6 +115,8 @@ def train(model, data_loader, val_data_loader, config, transform_data_fn=None):
         data_time += data_timer.toc(False)
 
         # Feed forward
+        fw_timer.tic()
+        
         inputs = (sinput,) if config.wrapper_type == 'None' else (sinput, coords, color)
         # model.initialize_coords(*init_args)
         soutput = model(*inputs)
@@ -118,19 +124,25 @@ def train(model, data_loader, val_data_loader, config, transform_data_fn=None):
         target = target.long().to(device)
 
         loss = criterion(soutput.F, target.long())
-
+  
         # Compute and accumulate gradient
         loss /= config.iter_size
         
         pred = get_prediction(data_loader.dataset, soutput.F, target)
         score = precision_at_one(pred, target)
-        
+
+        fw_timer.toc(False)
+        bw_timer.tic()
+
         # bp the loss
         loss.backward()
+
+        bw_timer.toc(False)
 
         # gather information
         logging_output = {'loss': loss.item(), 'score': score / config.iter_size}
 
+        ddp_timer.tic()
         if distributed:
           logging_output = all_gather_list(logging_output)
           logging_output = {w: np.mean([
@@ -139,6 +151,7 @@ def train(model, data_loader, val_data_loader, config, transform_data_fn=None):
 
         batch_loss += logging_output['loss']
         batch_score += logging_output['score']
+        ddp_timer.toc(False)
 
       # Update number of steps
       optimizer.step()
@@ -146,6 +159,9 @@ def train(model, data_loader, val_data_loader, config, transform_data_fn=None):
 
       data_time_avg.update(data_time)
       iter_time_avg.update(iter_timer.toc(False))
+      fw_time_avg.update(fw_timer.diff)
+      bw_time_avg.update(bw_timer.diff)
+      ddp_time_avg.update(ddp_timer.diff)
 
       losses.update(batch_loss, target.size(0))
       scores.update(batch_score, target.size(0))
@@ -159,8 +175,8 @@ def train(model, data_loader, val_data_loader, config, transform_data_fn=None):
         debug_str = "===> Epoch[{}]({}/{}): Loss {:.4f}\tLR: {}\t".format(
             epoch, curr_iter,
             len(data_loader) // config.iter_size, losses.avg, lrs)
-        debug_str += "Score {:.3f}\tData time: {:.4f}, Total iter time: {:.4f}".format(
-            scores.avg, data_time_avg.avg, iter_time_avg.avg)
+        debug_str += "Score {:.3f}\tData time: {:.4f}, Forward time: {:.4f}, Backward time: {:.4f}, DDP time: {:.4f}, Total iter time: {:.4f}".format(
+            scores.avg, data_time_avg.avg, fw_time_avg.avg, bw_time_avg.avg, ddp_time_avg.avg, iter_time_avg.avg)
         logging.info(debug_str)
         # Reset timers
         data_time_avg.reset()

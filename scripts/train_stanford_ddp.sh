@@ -13,7 +13,7 @@ export PYTHONUNBUFFERED="True"
 # export CUDA_VISIBLE_DEVICES=$1
 export BATCH_SIZE=${BATCH_SIZE:-6}
 export TIME=$(date +"%Y-%m-%d_%H-%M-%S")
-export LOG_DIR=${SAVEPATH}/outputs/StanfordArea5Dataset/local/$TIME
+export LOG_DIR=${SAVEPATH}/outputs/StanfordArea5Dataset/slurm/$TIME
 
 # Save the experiment detail and dir to the common log file
 mkdir -p $LOG_DIR

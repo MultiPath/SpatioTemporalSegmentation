@@ -84,14 +84,8 @@ def train(model, data_loader, val_data_loader, config, transform_data_fn=None):
     else:
       raise ValueError("=> no checkpoint found at '{}'".format(checkpoint_fn))
 
-  # data_iter = data_loader.__iter__()  # reset the data-iter every epoch
+  data_iter = data_loader.__iter__()  # (distributed) infinite sampler
   while is_training:
-
-    # before every epoch
-    if distributed:
-      data_loader.sampler.set_epoch(epoch) # ddp-dataloader generate sampler based on epochs
-    data_iter = data_loader.__iter__()  # reset the data-iter every epoch for compibility
-
     for iteration in range(len(data_loader) // config.iter_size):
       optimizer.zero_grad()
       data_time, batch_loss, batch_score = 0, 0, 0

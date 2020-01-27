@@ -13,7 +13,7 @@ import MinkowskiEngine as ME
 
 from plyfile import PlyData
 import lib.transforms as t
-from lib.dataloader import InfSampler
+from lib.dataloader import InfSampler, DistributedInfSampler
 from lib.voxelizer import Voxelizer
 from lib.distributed_utils import get_world_size
 
@@ -480,7 +480,7 @@ def initialize_data_loader(DatasetClass,
 
   if repeat:
     if get_world_size() > 1:
-      data_args['sampler'] = torch.utils.data.distributed.DistributedSampler(dataset)
+      data_args['sampler'] = DistributedInfSampler(dataset, shuffle=shuffle)  # torch.utils.data.distributed.DistributedSampler(dataset)
     else:
       data_args['sampler'] = InfSampler(dataset, shuffle)
   

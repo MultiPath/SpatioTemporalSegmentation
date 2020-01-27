@@ -1,17 +1,25 @@
 import logging
 import os.path as osp
-
+import numpy as np
 import torch
 from torch import nn
-
+from torch.serialization import default_restore_location
 from tensorboardX import SummaryWriter
 
 from lib.test import test
 from lib.utils import checkpoint, precision_at_one, \
     Timer, AverageMeter, get_prediction, get_torch_device
 from lib.solvers import initialize_optimizer, initialize_scheduler
-
+from lib.distributed_utils import all_gather_list, get_world_size
 from MinkowskiEngine import SparseTensor
+
+
+def _set_seed(config, step):
+  # Set seed based on args.seed and the update number so that we get
+  # reproducible results when resuming from checkpoints
+  seed = config.seed + step
+  torch.manual_seed(seed)
+  torch.cuda.manual_seed(seed)
 
 
 def validate(model, val_data_loader, writer, curr_iter, config, transform_data_fn):
@@ -23,8 +31,18 @@ def validate(model, val_data_loader, writer, curr_iter, config, transform_data_f
   return v_mIoU
 
 
+def load_state(model, state):
+  if get_world_size() > 1:
+    _model = model.module
+  else:
+    _model = model  
+  _model.load_state_dict(state)
+
 def train(model, data_loader, val_data_loader, config, transform_data_fn=None):
-  device = get_torch_device(config.is_cuda)
+  
+  device = config.device_id
+  distributed = get_world_size() > 1
+  
   # Set up the train flag for batch normalization
   model.train()
 
@@ -41,17 +59,20 @@ def train(model, data_loader, val_data_loader, config, transform_data_fn=None):
   writer = SummaryWriter(log_dir=config.log_dir)
 
   # Train the network
-  logging.info('===> Start training')
+  logging.info('===> Start training on {} GPUs, batch-size={}'.format(
+    get_world_size(), config.batch_size * get_world_size()
+  ))
   best_val_miou, best_val_iter, curr_iter, epoch, is_training = 0, 0, 1, 1, True
 
   if config.resume:
     checkpoint_fn = config.resume + '/weights.pth'
     if osp.isfile(checkpoint_fn):
       logging.info("=> loading checkpoint '{}'".format(checkpoint_fn))
-      state = torch.load(checkpoint_fn)
+      state = torch.load(checkpoint_fn, map_location=lambda s, l: default_restore_location(s, 'cpu'))
       curr_iter = state['iteration'] + 1
       epoch = state['epoch']
-      model.load_state_dict(state['state_dict'])
+      load_state(model, state['state_dict'])
+
       if config.resume_optimizer:
         scheduler = initialize_scheduler(optimizer, config, last_step=curr_iter)
         optimizer.load_state_dict(state['optimizer'])
@@ -62,11 +83,17 @@ def train(model, data_loader, val_data_loader, config, transform_data_fn=None):
     else:
       raise ValueError("=> no checkpoint found at '{}'".format(checkpoint_fn))
 
-  data_iter = data_loader.__iter__()
+  # data_iter = data_loader.__iter__()  # reset the data-iter every epoch
   while is_training:
+
+    # before every epoch
+    if distributed:
+      data_loader.sampler.set_epoch(epoch) # ddp-dataloader generate sampler based on epochs
+    data_iter = data_loader.__iter__()  # reset the data-iter every epoch for compibility
+
     for iteration in range(len(data_loader) // config.iter_size):
       optimizer.zero_grad()
-      data_time, batch_loss = 0, 0
+      data_time, batch_loss, batch_score = 0, 0, 0
       iter_timer.tic()
 
       for sub_iter in range(config.iter_size):
@@ -96,8 +123,24 @@ def train(model, data_loader, val_data_loader, config, transform_data_fn=None):
 
         # Compute and accumulate gradient
         loss /= config.iter_size
-        batch_loss += loss.item()
+        
+        pred = get_prediction(data_loader.dataset, soutput.F, target)
+        score = precision_at_one(pred, target)
+        
+        # bp the loss
         loss.backward()
+
+        # gather information
+        logging_output = {'loss': loss.item(), 'score': score / config.iter_size}
+
+        if distributed:
+          logging_output = all_gather_list(logging_output)
+          logging_output = {w: np.mean([
+                a[w] for a in logging_output]
+              ) for w in logging_output[0]}
+
+        batch_loss += logging_output['loss']
+        batch_score += logging_output['score']
 
       # Update number of steps
       optimizer.step()
@@ -106,10 +149,8 @@ def train(model, data_loader, val_data_loader, config, transform_data_fn=None):
       data_time_avg.update(data_time)
       iter_time_avg.update(iter_timer.toc(False))
 
-      pred = get_prediction(data_loader.dataset, soutput.F, target)
-      score = precision_at_one(pred, target)
       losses.update(batch_loss, target.size(0))
-      scores.update(score, target.size(0))
+      scores.update(batch_score, target.size(0))
 
       if curr_iter >= config.max_iter:
         is_training = False

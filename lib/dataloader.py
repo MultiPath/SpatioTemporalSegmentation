@@ -32,3 +32,4 @@ class InfSampler(Sampler):
     return len(self.data_source)
 
   next = __next__  # Python 2 compatibility
+

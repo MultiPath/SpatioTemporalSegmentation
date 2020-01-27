@@ -8,7 +8,7 @@ import numpy as np
 import torch
 
 from lib.pc_utils import colorize_pointcloud, save_point_cloud
-
+from lib.distributed_utils import get_world_size, get_rank
 
 def load_state_with_same_shape(model, weights):
   model_state = model.state_dict()
@@ -20,6 +20,10 @@ def load_state_with_same_shape(model, weights):
 
 
 def checkpoint(model, optimizer, epoch, iteration, config, best_val=None, best_val_iter=None, postfix=None):
+  # only works for rank == 0
+  if get_world_size() > 1 and get_rank() > 0:
+    return
+
   mkdir_p(config.log_dir)
   if config.overwrite_weights:
     if postfix is not None:
@@ -29,11 +33,13 @@ def checkpoint(model, optimizer, epoch, iteration, config, best_val=None, best_v
   else:
     filename = f"checkpoint_{config.wrapper_type}{config.model}_iter_{iteration}.pth"
   checkpoint_file = config.log_dir + '/' + filename
+
+  _model = model.module if get_world_size() > 1 else model
   state = {
       'iteration': iteration,
       'epoch': epoch,
       'arch': config.model,
-      'state_dict': model.state_dict(),
+      'state_dict': _model.state_dict(),
       'optimizer': optimizer.state_dict()
   }
   if best_val is not None:

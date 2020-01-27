@@ -1,4 +1,5 @@
 import argparse
+import torch
 
 
 def str2opt(arg):
@@ -112,7 +113,6 @@ data_arg.add_argument('--partial_crop', type=float, default=0.)
 data_arg.add_argument('--train_limit_numpoints', type=int, default=0)
 
 # Point Cloud Dataset
-
 data_arg.add_argument(
     '--synthia_path',
     type=str,
@@ -165,6 +165,30 @@ train_arg.add_argument(
     type=str2bool,
     default=False,
     help='Weights with the same size will be loaded')
+
+# Distributed Training configurations
+ddp_arg = add_argument_group('Distributed')
+ddp_arg.add_argument('--distributed-world-size', type=int, metavar='N',
+                    default=max(1, torch.cuda.device_count()),
+                    help='total number of GPUs across all nodes (default: all visible GPUs)')
+ddp_arg.add_argument('--distributed-rank', default=0, type=int,
+                    help='rank of the current worker')
+ddp_arg.add_argument('--distributed-backend', default='nccl', type=str,
+                    help='distributed backend')
+ddp_arg.add_argument('--distributed-init-method', default=None, type=str,
+                    help='typically tcp://hostname:port that will be used to '
+                        'establish initial connetion')
+ddp_arg.add_argument('--distributed-port', default=-1, type=int,
+                    help='port number (not required if using --distributed-init-method)')
+ddp_arg.add_argument('--device-id', '--local_rank', default=0, type=int,
+                    help='which GPU to use (usually configured automatically)')
+ddp_arg.add_argument('--distributed-no-spawn', action='store_true',
+                    help='do not spawn multiple processes even if multiple GPUs are visible')
+ddp_arg.add_argument('--ddp-backend', default='c10d', type=str,
+                    choices=['c10d', 'no_c10d'],
+                    help='DistributedDataParallel backend')
+ddp_arg.add_argument('--bucket-cap-mb', default=25, type=int, metavar='MB',
+                    help='bucket size for reduction')
 
 # Data augmentation
 data_aug_arg = add_argument_group('DataAugmentation')

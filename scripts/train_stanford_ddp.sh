@@ -8,16 +8,16 @@ set -o pipefail
 
 SAVEPATH=/checkpoint/jgu/space/3d_ssl2
 DATAPATH=${3:-"/private/home/jgu/data/3d_ssl2/Stanford3D/"}
+MODEL=Res16UNet34C
 
 export PYTHONUNBUFFERED="True"
-export CUDA_VISIBLE_DEVICES=0
+# export CUDA_VISIBLE_DEVICES=0
 export BATCH_SIZE=${BATCH_SIZE:-6}
 export TIME=$(date +"%Y-%m-%d_%H-%M-%S")
-export LOG_DIR=${SAVEPATH}/outputs/StanfordArea5Dataset/debug/$TIME
+export LOG_DIR=${SAVEPATH}/outputs/StanfordArea5Dataset/slurm/$MODEL_$TIME
 
 # Save the experiment detail and dir to the common log file
 mkdir -p $LOG_DIR
-
 LOG="$LOG_DIR/$TIME.txt"
 
 python -m ddp_main \
@@ -25,8 +25,8 @@ python -m ddp_main \
     --batch_size $BATCH_SIZE \
     --stat_freq 1 --val_freq 100 --save_freq 100 \
     --scheduler PolyLR \
-    --model Res16UNet18 \
-    --conv1_kernel_size 5 \
+    --model ${MODEL} \
+    --conv1_kernel_size 3 \
     --log_dir $LOG_DIR \
     --lr 1e-1 \
     --max_iter 60000 \

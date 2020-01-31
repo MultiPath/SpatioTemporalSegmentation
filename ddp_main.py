@@ -16,6 +16,7 @@ from easydict import EasyDict as edict
 
 # Torch packages
 import torch
+from torch.serialization import default_restore_location
 
 # Train deps
 from config import get_config
@@ -148,7 +149,9 @@ def main(config, init_distributed=False):
   # Load weights if specified by the parameter.
   elif config.weights.lower() != 'none':
     logging.info('===> Loading weights: ' + config.weights)
-    state = torch.load(config.weights)
+    # state = torch.load(config.weights)
+    state = torch.load(config.weights, map_location=lambda s, l: default_restore_location(s, 'cpu'))
+
     if config.weights_for_inner_model:
       model.model.load_state_dict(state['state_dict'])
     else:

@@ -238,6 +238,11 @@ misc_arg.add_argument('--num_gpu', type=str2bool, default=1)
 misc_arg.add_argument('--seed', type=int, default=123)
 
 
+# New configs for experimental sweeps
+misc_arg.add_argument('--load_bn', type=str, default='all_bn')
+misc_arg.add_argument('--voxel_size', type=float, default='0.05')
+
+
 def get_config():
   config = parser.parse_args()
   return config  # Training settings

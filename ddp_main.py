@@ -23,7 +23,9 @@ from config import get_config
 
 from lib.test import test
 from lib.train import train
-from lib.utils import load_state_with_same_shape, get_torch_device, count_parameters
+from lib.utils import get_torch_device, count_parameters
+from lib.utils import load_state_with_same_shape, load_state_with_same_shape_no_bn, load_state_with_same_shape_no_bn_stats, load_state_with_same_shape_no_bn0
+from lib.utils import load_state_with_same_shape_no_conv0
 from lib.dataset import initialize_data_loader
 from lib.datasets import load_dataset
 from lib import distributed_utils
@@ -156,7 +158,18 @@ def main(config, init_distributed=False):
       model.model.load_state_dict(state['state_dict'])
     else:
       if config.lenient_weight_loading:
-        matched_weights = load_state_with_same_shape(model, state['state_dict'])
+        if config.load_bn == "all_bn":
+          matched_weights = load_state_with_same_shape(model, state['state_dict'])
+        elif config.load_bn == "bn_weight_only":
+          matched_weights = load_state_with_same_shape_no_bn_stats(model, state['state_dict'])
+        elif config.load_bn == "no_bn0":
+          matched_weights = load_state_with_same_shape_no_bn0(model, state['state_dict'])
+        elif config.load_bn == "no_bn":
+          matched_weights = load_state_with_same_shape_no_bn(model, state['state_dict'])
+        elif config.load_bn == "no_conv0":
+          matched_weights = load_state_with_same_shape_no_conv0(model, state['state_dict'])
+        else:
+          raise NotImplementedError
         model_dict = model.state_dict()
         model_dict.update(matched_weights)
         model.load_state_dict(model_dict)

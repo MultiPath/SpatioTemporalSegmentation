@@ -100,8 +100,10 @@ class StanfordDataset(StanfordVoxelizationDatasetBase, VoxelizationDataset):
       ((-np.pi / 32, np.pi / 32), (-np.pi / 32, np.pi / 32), (-np.pi, np.pi))
   TRANSLATION_AUGMENTATION_RATIO_BOUND = ((-0.2, 0.2), (-0.2, 0.2), (-0.05, 0.05))
 
-  AUGMENT_COORDS_TO_FEATS = True
-  NUM_IN_CHANNEL = 6
+  # AUGMENT_COORDS_TO_FEATS = True
+  # NUM_IN_CHANNEL = 6
+  AUGMENT_COORDS_TO_FEATS = False
+  NUM_IN_CHANNEL = 3
 
   def __init__(self,
                config,
@@ -124,6 +126,10 @@ class StanfordDataset(StanfordVoxelizationDatasetBase, VoxelizationDataset):
     else:
       data_paths = read_txt(os.path.join('splits/stanford', self.DATA_PATH_FILE[phase]))
 
+
+    if config.voxel_size:
+      self.VOXEL_SIZE = config.voxel_size
+    logging.info('voxel size: {}'.format(self.VOXEL_SIZE))
     logging.info('Loading {} {}: {}'.format(self.__class__.__name__, phase,
                                             self.DATA_PATH_FILE[phase]))
 

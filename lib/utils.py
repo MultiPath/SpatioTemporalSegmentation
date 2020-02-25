@@ -12,12 +12,48 @@ from lib.distributed_utils import get_world_size, get_rank
 
 def load_state_with_same_shape(model, weights):
   model_state = model.state_dict()
+  if list(weights.keys())[0].startswith('module.'):
+    logging.info("Loading multigpu weights with module. prefix...")
+    weights = {k.partition('module.')[2]:weights[k] for k in weights.keys()}
+  
   filtered_weights = {
-      k: v for k, v in weights.items() if k in model_state and v.size() == model_state[k].size()
+      k: v for k, v in weights.items() if k in model_state  and v.size() == model_state[k].size() 
   }
   logging.info("Loading weights:" + ', '.join(filtered_weights.keys()))
   return filtered_weights
 
+def load_state_with_same_shape_no_conv0(model, weights):
+  model_state = model.state_dict()
+  filtered_weights = {
+      k: v for k, v in weights.items() if k in model_state and v.size() == model_state[k].size() and "conv0p1s1" not in k
+  }
+  logging.info("Loading weights:" + ', '.join(filtered_weights.keys()))
+  return filtered_weights
+
+def load_state_with_same_shape_no_bn0(model, weights):
+  model_state = model.state_dict()
+  filtered_weights = {
+      k: v for k, v in weights.items() if k in model_state and v.size() == model_state[k].size() and "bn0" not in k
+  }
+  logging.info("Loading weights:" + ', '.join(filtered_weights.keys()))
+  return filtered_weights
+
+def load_state_with_same_shape_no_bn(model, weights):
+  model_state = model.state_dict()
+  filtered_weights = {
+      k: v for k, v in weights.items() if k in model_state and v.size() == model_state[k].size() and "norm" not in k and "bn" not in k and "running" not in k and "tracked" not in k
+  }
+  logging.info("Loading weights:" + ', '.join(filtered_weights.keys()))
+  return filtered_weights
+
+def load_state_with_same_shape_no_bn_stats(model, weights):
+  model_state = model.state_dict()
+  filtered_weights = {
+      k: v for k, v in weights.items() if k in model_state and v.size() == model_state[k].size() and "running" not in k and "tracked" not in k
+
+  }
+  logging.info("Loading weights:" + ', '.join(filtered_weights.keys()))
+  return filtered_weights
 
 def checkpoint(model, optimizer, epoch, iteration, config, best_val=None, best_val_iter=None, postfix=None):
   # only works for rank == 0

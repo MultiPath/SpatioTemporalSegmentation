@@ -3,8 +3,8 @@
 #     File Name           :     sbatch_train.sh
 #     Description         :     Run this script with 'sbatch sbatch_train.sh'
 #################################################################################
-#SBATCH --output=/checkpoint/jgu/jobs_output/slurm-%A_%a.out
-#SBATCH --error=/checkpoint/jgu/jobs_output/slurm-%A_%a.err
+#SBATCH --output=/checkpoint/s9xie/jobs_output/slurm-%A_%a.out
+#SBATCH --error=/checkpoint/s9xie/jobs_output/slurm-%A_%a.err
 #SBATCH --partition=priority
 #SBATCH --comment="<ECCV deadline>"
 #SBATCH --nodes=1

@@ -35,6 +35,7 @@ class Res16UNetBase(ResNetBase):
 
     # Output of the first conv concated to conv6
     self.inplanes = self.INIT_DIM
+    print("building model, ", in_channels)
     self.conv0p1s1 = conv(
         in_channels,
         self.inplanes,
